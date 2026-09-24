@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Backed Property Location Map</title>
+
+  <style>
+    html,
+    body {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      font-family: Arial, sans-serif;
+    }
+
+    #map {
+      width: 100%;
+      height: 100%;
+    }
+
+    .info-window {
+      max-width: 300px;
+    }
+
+    .info-window h3 {
+      margin: 0 0 8px;
+      font-size: 16px;
+      color: #222;
+    }
+
+    .info-window p {
+      margin: 0;
+      font-size: 14px;
+      line-height: 1.5;
+      color: #444;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div id="map"></div>
+
+  <script>
+
+    /*
+     * ============================================================
+     * BACKED PROPERTY MAP
+     * ============================================================
+     *
+     * The map receives property and POI data through the
+     * "data" URL parameter.
+     *
+     * Example:
+     *
+     * index.html?data=ENCODED_JSON_DATA
+     *
+     * If no data parameter is supplied, sample data is used
+     * for testing.
+     *
+     * ============================================================
+     */
+
+
+    /*
+     * ============================================================
+     * PRODUCTION GOOGLE MAP CONFIGURATION
+     * ============================================================
+     */
+
+    const GOOGLE_MAP_ID = "YOUR_PRODUCTION_MAP_ID";
+
+
+    /*
+     * ============================================================
+     * SAMPLE DATA
+     * ============================================================
+     *
+     * This is only used when the page is opened without
+     * Airtable data.
+     *
+     * It can be removed once the Airtable connection is tested.
+     * ============================================================
+     */
+
+    const sampleMapData = {
+
+      property: {
+        name: "18 Harbour Road Commercial Centre",
+        latitude: -33.817805,
+        longitude: 151.003475
+      },
+
+      pointsOfInterest: [
+
+        {
+          name: "Newcastle CBD",
+          latitude: -32.9283,
+          longitude: 151.7817,
+          notes: "Major commercial and retail centre providing access to employment, retail, services and transport infrastructure."
+        },
+
+        {
+          name: "John Hunter Hospital",
+          latitude: -32.923,
+          longitude: 151.6935,
+          notes: "Major regional hospital and employment precinct."
+        },
+
+        {
+          name: "Newcastle Interchange",
+          latitude: -32.9256,
+          longitude: 151.771,
+          notes: "Major public transport interchange providing access to rail and bus services."
+        },
+
+        {
+          name: "University of Newcastle",
+          latitude: -32.892,
+          longitude: 151.705,
+          notes: "Major education and employment precinct."
+        }
+
+      ]
+
+    };
+
+
+    /*
+     * ============================================================
+     * GET MAP DATA
+     * ============================================================
+     */
+
+    function getMapData() {
+
+      const params = new URLSearchParams(window.location.search);
+
+      const encodedData = params.get("data");
+
+      if (!encodedData) {
+        return sampleMapData;
+      }
+
+      try {
+
+        const decodedData = decodeURIComponent(encodedData);
+
+        const parsedData = JSON.parse(decodedData);
+
+        return parsedData;
+
+      } catch (error) {
+
+        console.error("Unable to read map data:", error);
+
+        return sampleMapData;
+
+      }
+
+    }
+
+
+    const mapData = getMapData();
+
+
+    /*
+     * ============================================================
+     * HTML ESCAPING
+     * ============================================================
+     *
+     * Protects the information window from unexpected HTML
+     * contained in Airtable text.
+     * ============================================================
+     */
+
+    function escapeHtml(value) {
+
+      if (value === null || value === undefined) {
+        return "";
+      }
+
+      return String(value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+
+    }
+
+
+    /*
+     * ============================================================
+     * INITIALIZE MAP
+     * ============================================================
+     */
+
+    async function initMap() {
+
+      const { Map, InfoWindow } =
+        await google.maps.importLibrary("maps");
+
+
+      const { AdvancedMarkerElement, PinElement } =
+        await google.maps.importLibrary("marker");
+
+
+      /*
+       * ------------------------------------------------------------
+       * VALIDATE PROPERTY
+       * ------------------------------------------------------------
+       */
+
+      if (
+        !mapData.property ||
+        typeof mapData.property.latitude !== "number" ||
+        typeof mapData.property.longitude !== "number"
+      ) {
+
+        document.getElementById("map").innerHTML =
+          "<div style='padding:30px;font-family:Arial'>" +
+          "<h2>Map data unavailable</h2>" +
+          "<p>The property location could not be loaded.</p>" +
+          "</div>";
+
+        return;
+
+      }
+
+
+      /*
+       * ------------------------------------------------------------
+       * PROPERTY LOCATION
+       * ------------------------------------------------------------
+       */
+
+      const propertyLocation = {
+
+        lat: mapData.property.latitude,
+
+        lng: mapData.property.longitude
+
+      };
+
+
+      /*
+       * ------------------------------------------------------------
+       * CREATE MAP
+       * ------------------------------------------------------------
+       */
+
+      const map = new Map(
+
+        document.getElementById("map"),
+
+        {
+
+          center: propertyLocation,
+
+          zoom: 14,
+
+          mapId: GOOGLE_MAP_ID
+
+        }
+
+      );
+
+
+      /*
+       * ------------------------------------------------------------
+       * MAP BOUNDS
+       * ------------------------------------------------------------
+       */
+
+      const bounds = new google.maps.LatLngBounds();
+
+      bounds.extend(propertyLocation);
+
+
+      /*
+       * ------------------------------------------------------------
+       * SHARED INFO WINDOW
+       * ------------------------------------------------------------
+       */
+
+      const infoWindow = new InfoWindow();
+
+
+      /*
+       * ============================================================
+       * SUBJECT PROPERTY
+       * ============================================================
+       */
+
+      const propertyPin = new PinElement({
+
+        glyph: "P"
+
+      });
+
+
+      const propertyMarker = new AdvancedMarkerElement({
+
+        map: map,
+
+        position: propertyLocation,
+
+        title: mapData.property.name,
+
+        content: propertyPin.element
+
+      });
+
+
+      propertyMarker.addListener("click", () => {
+
+        infoWindow.setContent(`
+
+          <div class="info-window">
+
+            <h3>
+              ${escapeHtml(mapData.property.name)}
+            </h3>
+
+            <p>
+              Subject Property
+            </p>
+
+          </div>
+
+        `);
+
+
+        infoWindow.open({
+
+          map: map,
+
+          anchor: propertyMarker
+
+        });
+
+      });
+
+
+      /*
+       * ============================================================
+       * POINTS OF INTEREST
+       * ============================================================
+       */
+
+      const pointsOfInterest =
+        Array.isArray(mapData.pointsOfInterest)
+          ? mapData.pointsOfInterest
+          : [];
+
+
+      pointsOfInterest.forEach((poi) => {
+
+        if (
+          typeof poi.latitude !== "number" ||
+          typeof poi.longitude !== "number"
+        ) {
+
+          return;
+
+        }
+
+
+        const poiLocation = {
+
+          lat: poi.latitude,
+
+          lng: poi.longitude
+
+        };
+
+
+        bounds.extend(poiLocation);
+
+
+        const poiPin = new PinElement({
+
+          glyph: "•"
+
+        });
+
+
+        const poiMarker = new AdvancedMarkerElement({
+
+          map: map,
+
+          position: poiLocation,
+
+          title: poi.name,
+
+          content: poiPin.element
+
+        });
+
+
+        poiMarker.addListener("click", () => {
+
+          infoWindow.setContent(`
+
+            <div class="info-window">
+
+              <h3>
+                ${escapeHtml(poi.name)}
+              </h3>
+
+              <p>
+                ${escapeHtml(poi.notes || "")}
+              </p>
+
+            </div>
+
+          `);
+
+
+          infoWindow.open({
+
+            map: map,
+
+            anchor: poiMarker
+
+          });
+
+        });
+
+      });
+
+
+      /*
+       * ============================================================
+       * FIT MAP TO PROPERTY + POIs
+       * ============================================================
+       */
+
+      if (pointsOfInterest.length > 0) {
+
+        map.fitBounds(bounds, 80);
+
+      }
+
+    }
+
+
+    window.initMap = initMap;
+
+  </script>
+
+
+  <!--
+    GOOGLE MAPS JAVASCRIPT API
+
+    Replace YOUR_PRODUCTION_API_KEY with the production
+    Google Maps API key created in the Backed Property Maps
+    Google Cloud project.
+  -->
+
+  <script
+    async
+    src="https://maps.googleapis.com/maps/api/js?key=YOUR_PRODUCTION_API_KEY&loading=async&callback=initMap">
+  </script>
+
+</body>
+</html>
