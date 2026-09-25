@@ -134,33 +134,31 @@
      * ============================================================
      */
 
-    function getMapData() {
+   function getMapData() {
 
-      const params = new URLSearchParams(window.location.search);
+  const params = new URLSearchParams(window.location.search);
 
-      const encodedData = params.get("data");
+  const encodedData = params.get("data");
 
-      if (!encodedData) {
-        return sampleMapData;
-      }
+  if (!encodedData) {
+    return sampleMapData;
+  }
 
-      try {
+  try {
 
-        const decodedData = decodeURIComponent(encodedData);
+    const parsedData = JSON.parse(encodedData);
 
-        const parsedData = JSON.parse(decodedData);
+    return parsedData;
 
-        return parsedData;
+  } catch (error) {
 
-      } catch (error) {
+    console.error("Unable to read map data:", error);
 
-        console.error("Unable to read map data:", error);
+    return sampleMapData;
 
-        return sampleMapData;
+  }
 
-      }
-
-    }
+}
 
 
     const mapData = getMapData();
